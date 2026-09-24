@@ -433,15 +433,22 @@
     try {
       const includeTimestamps = options.includeTimestamps !== undefined ? options.includeTimestamps : true;
 
-      // 1. Check if transcript segment elements are already rendered in DOM
+      // 1. Check if transcript segments are ALREADY rendered in DOM
       let segments = document.querySelectorAll('ytd-transcript-segment-renderer');
 
       if (!segments || segments.length === 0) {
+        // First expand description section if collapsed
+        expandDescriptionIfNeeded();
+        await sleep(300);
+
         // Find "Mostrar transcrição" / "Show transcript" button
         let showBtn = findShowTranscriptButton();
 
         if (showBtn) {
+          showBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          await sleep(200);
           showBtn.click();
+          console.log('[YouTube Auto Commenter] Clicked "Mostrar transcrição" button.');
         } else {
           // Fallback: try opening via 3-dots more menu
           const opened = await openTranscriptFromMoreMenu();
@@ -451,7 +458,7 @@
         }
 
         // Wait for segments to render in DOM
-        segments = await waitForTranscriptSegments(8000);
+        segments = await waitForTranscriptSegments(10000);
       }
 
       if (!segments || segments.length === 0) {
@@ -490,8 +497,22 @@
     }
   }
 
+  function expandDescriptionIfNeeded() {
+    const expandBtn = document.querySelector('ytd-watch-metadata #expand') ||
+                      document.querySelector('ytd-text-inline-expander #expand') ||
+                      document.querySelector('#description #expand') ||
+                      document.querySelector('tp-yt-paper-button#expand') ||
+                      document.querySelector('#expand-button');
+    if (expandBtn && isElementVisible(expandBtn)) {
+      try {
+        expandBtn.click();
+        console.log('[YouTube Auto Commenter] Expanded description area to reveal transcript button.');
+      } catch (e) {}
+    }
+  }
+
   function findShowTranscriptButton() {
-    // 1. Check exact or partial aria-label (pt-BR / en-US)
+    // 1. Direct search by aria-label
     let btn = document.querySelector('button[aria-label="Mostrar transcrição"]') ||
               document.querySelector('button[aria-label*="Mostrar transcrição"]') ||
               document.querySelector('button[aria-label*="transcrição"]') ||
@@ -500,7 +521,17 @@
 
     if (btn) return btn;
 
-    // 2. Search button text content
+    // 2. Search by inner span text
+    const textSpans = document.querySelectorAll('span.ytAttributedStringHost, span.ytSpecButtonShapeNextButtonTextContent, span');
+    for (const span of textSpans) {
+      const txt = span.textContent ? span.textContent.trim() : '';
+      if (txt === 'Mostrar transcrição' || txt === 'Show transcript' || txt.includes('Mostrar transcrição')) {
+        const closestBtn = span.closest('button');
+        if (closestBtn) return closestBtn;
+      }
+    }
+
+    // 3. Search candidate buttons
     const candidateButtons = document.querySelectorAll('button.ytSpecButtonShapeNextHost, button');
     for (const b of candidateButtons) {
       const textContent = b.textContent ? b.textContent.trim() : '';
@@ -509,8 +540,9 @@
       }
     }
 
-    // 3. Check video description section renderer
+    // 4. Video description section renderer
     const descSectionBtn = document.querySelector('ytd-video-description-transcript-section-renderer button') ||
+                           document.querySelector('ytd-structured-description-content-renderer button') ||
                            document.querySelector('#primary-button ytd-button-renderer button');
     if (descSectionBtn) return descSectionBtn;
 
@@ -537,7 +569,7 @@
     return false;
   }
 
-  function waitForTranscriptSegments(timeoutMs = 7000) {
+  function waitForTranscriptSegments(timeoutMs = 10000) {
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
 
@@ -572,7 +604,15 @@
       const textEl = segment.querySelector('.segment-text') ||
                      segment.querySelector('yt-formatted-string.segment-text') ||
                      segment.querySelector('yt-formatted-string');
-      const textContent = textEl ? textEl.textContent.trim() : '';
+      let textContent = textEl ? textEl.textContent.trim() : '';
+
+      // Fallback: aria-label on .segment
+      if (!textContent) {
+        const segDiv = segment.querySelector('.segment');
+        if (segDiv && segDiv.getAttribute('aria-label')) {
+          textContent = segDiv.getAttribute('aria-label').trim();
+        }
+      }
 
       if (textContent) {
         if (includeTimestamps && timestampText) {
