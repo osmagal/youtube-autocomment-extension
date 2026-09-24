@@ -9,11 +9,12 @@ chrome.runtime.onInstalled.addListener(() => {
   }
 
   // Set default settings in storage if not present
-  chrome.storage.local.get(['autoCommentEnabled', 'commentText', 'autoSubmit', 'commentedVideos'], (data) => {
+  chrome.storage.local.get(['autoCommentEnabled', 'commentText', 'autoSubmit', 'autoLike', 'commentedVideos'], (data) => {
     const defaults = {};
     if (data.autoCommentEnabled === undefined) defaults.autoCommentEnabled = true;
     if (data.commentText === undefined) defaults.commentText = "Ótimo vídeo! Obrigado por compartilhar.";
     if (data.autoSubmit === undefined) defaults.autoSubmit = true;
+    if (data.autoLike === undefined) defaults.autoLike = true;
     if (data.commentedVideos === undefined) defaults.commentedVideos = {};
 
     if (Object.keys(defaults).length > 0) {

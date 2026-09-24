@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const toggleAutoComment = document.getElementById('toggleAutoComment');
   const commentTextArea = document.getElementById('commentTextArea');
   const toggleAutoSubmit = document.getElementById('toggleAutoSubmit');
+  const toggleAutoLike = document.getElementById('toggleAutoLike');
   const charCount = document.getElementById('charCount');
   const saveIndicator = document.getElementById('saveIndicator');
   
@@ -40,10 +41,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load configuration from chrome.storage.local
   function loadSettings() {
-    chrome.storage.local.get(['autoCommentEnabled', 'commentText', 'autoSubmit', 'commentedVideos'], (data) => {
+    chrome.storage.local.get(['autoCommentEnabled', 'commentText', 'autoSubmit', 'autoLike', 'commentedVideos'], (data) => {
       toggleAutoComment.checked = data.autoCommentEnabled !== false;
       commentTextArea.value = data.commentText || "Ótimo vídeo! Obrigado por compartilhar.";
       toggleAutoSubmit.checked = data.autoSubmit !== false;
+      toggleAutoLike.checked = data.autoLike !== false;
       
       updateCharCount();
       updateGlobalStatusBadge(toggleAutoComment.checked);
@@ -75,6 +77,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Auto-Submit Checkbox
     toggleAutoSubmit.addEventListener('change', () => {
       chrome.storage.local.set({ autoSubmit: toggleAutoSubmit.checked });
+      showSaveIndicator();
+    });
+
+    // Auto-Like Checkbox
+    toggleAutoLike.addEventListener('change', () => {
+      chrome.storage.local.set({ autoLike: toggleAutoLike.checked });
       showSaveIndicator();
     });
 

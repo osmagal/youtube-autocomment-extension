@@ -96,10 +96,11 @@
 
     try {
       // 1. Check extension settings and history
-      const settings = await getStorageData(['autoCommentEnabled', 'commentText', 'autoSubmit', 'commentedVideos']);
+      const settings = await getStorageData(['autoCommentEnabled', 'commentText', 'autoSubmit', 'autoLike', 'commentedVideos']);
       const isEnabled = settings.autoCommentEnabled !== false;
       const commentText = (settings.commentText || '').trim();
       const autoSubmit = settings.autoSubmit !== false;
+      const autoLike = settings.autoLike !== false;
       const commentedVideos = settings.commentedVideos || {};
 
       if (!isEnabled && !force) {
@@ -180,7 +181,12 @@
 
       console.log('[YouTube Auto Commenter] Comment text inserted into input box.');
 
-      // 6. Submit or wait for review
+      // 6. Give a like to the video if enabled
+      if (autoLike) {
+        await tryLikeVideo();
+      }
+
+      // 7. Submit or wait for review
       if (autoSubmit) {
         // Wait for submit button to be enabled
         const submitButton = await waitForSubmitButton(20, 400);
@@ -192,7 +198,7 @@
 
           // Record in storage
           await recordCommentedVideo(videoId, commentText);
-          showToast('Comentário enviado com sucesso!', 'success');
+          showToast(autoLike ? 'Comentário enviado e curtida realizada com sucesso!' : 'Comentário enviado com sucesso!', 'success');
           lastProcessedVideoId = videoId;
           isProcessing = false;
           return { success: true, message: 'Comment submitted successfully' };
@@ -216,6 +222,59 @@
       isProcessing = false;
       return { success: false, error: err.message };
     }
+  }
+
+  // Attempt to click the YouTube Like (Gostei) button
+  async function tryLikeVideo() {
+    console.log('[YouTube Auto Commenter] Attempting to like video...');
+
+    const selectors = [
+      'segmented-like-dislike-button-view-model like-button-view-model button',
+      '#segmented-like-button button',
+      'segmented-like-dislike-button-view-model button[aria-label*="gostei" i]',
+      'segmented-like-dislike-button-view-model button[aria-label*="like" i]',
+      'ytd-watch-metadata #top-level-buttons-computed like-button-view-model button',
+      'ytd-toggle-button-renderer button[aria-label*="gostei" i]',
+      'ytd-toggle-button-renderer button[aria-label*="like" i]'
+    ];
+
+    let likeBtn = null;
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el && isElementVisible(el)) {
+        likeBtn = el;
+        break;
+      }
+    }
+
+    if (!likeBtn) {
+      // Fallback selector using touch feedback shape provided in YouTube DOM
+      const touchFeedback = document.querySelector('segmented-like-dislike-button-view-model yt-touch-feedback-shape, like-button-view-model yt-touch-feedback-shape');
+      if (touchFeedback) {
+        likeBtn = touchFeedback.closest('button');
+      }
+    }
+
+    if (!likeBtn) {
+      console.warn('[YouTube Auto Commenter] Like button not found on page.');
+      return false;
+    }
+
+    // Check if already liked / pressed
+    const isPressed = likeBtn.getAttribute('aria-pressed') === 'true' ||
+                      likeBtn.closest('like-button-view-model')?.querySelector('button[aria-pressed="true"]') !== null ||
+                      (likeBtn.getAttribute('aria-label') || '').toLowerCase().includes('remover') ||
+                      (likeBtn.getAttribute('aria-label') || '').toLowerCase().includes('desfazer');
+
+    if (isPressed) {
+      console.log('[YouTube Auto Commenter] Video is already liked.');
+      return true;
+    }
+
+    // Click the Like button
+    likeBtn.click();
+    console.log('[YouTube Auto Commenter] Video liked successfully!');
+    return true;
   }
 
   // Scroll down page to load comments container
