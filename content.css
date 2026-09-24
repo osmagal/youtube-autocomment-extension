@@ -1,0 +1,49 @@
+/* YouTube Auto Commenter - Injected Toast Styles */
+
+#yt-auto-comment-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  background-color: #1f1f1f;
+  color: #ffffff;
+  font-family: Roboto, Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  border: 1px solid #383838;
+  opacity: 0;
+  transform: translateY(20px);
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+#yt-auto-comment-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#yt-auto-comment-toast.success {
+  border-left: 4px solid #2ba640;
+}
+
+#yt-auto-comment-toast.warning {
+  border-left: 4px solid #fbc02d;
+}
+
+#yt-auto-comment-toast.error {
+  border-left: 4px solid #ff4e4e;
+}
+
+#yt-auto-comment-toast.info {
+  border-left: 4px solid #3ea6ff;
+}
+
+.yt-ac-toast-text {
+  line-height: 1.4;
+}
