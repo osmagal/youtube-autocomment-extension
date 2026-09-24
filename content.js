@@ -54,6 +54,13 @@
         sendResponse({ success: false, error: 'No video ID found' });
       }
     }
+
+    if (message.type === 'GET_TRANSCRIPT') {
+      processGetTranscript({ includeTimestamps: message.includeTimestamps !== false })
+        .then((result) => sendResponse(result))
+        .catch((err) => sendResponse({ success: false, error: err.message }));
+      return true;
+    }
   });
 
   // Initial attempt
@@ -416,5 +423,194 @@
         "'": '&#039;'
       }[m];
     });
+  }
+
+  // ==========================================
+  // TRANSCRIPT EXTRACTION MODULE
+  // ==========================================
+
+  async function processGetTranscript(options = {}) {
+    try {
+      const includeTimestamps = options.includeTimestamps !== undefined ? options.includeTimestamps : true;
+
+      // 1. Check if transcript segment elements are already rendered in DOM
+      let segments = document.querySelectorAll('ytd-transcript-segment-renderer');
+
+      if (!segments || segments.length === 0) {
+        // Find "Mostrar transcrição" / "Show transcript" button
+        let showBtn = findShowTranscriptButton();
+
+        if (showBtn) {
+          showBtn.click();
+        } else {
+          // Fallback: try opening via 3-dots more menu
+          const opened = await openTranscriptFromMoreMenu();
+          if (!opened) {
+            throw new Error('Botão "Mostrar transcrição" não foi encontrado na página.');
+          }
+        }
+
+        // Wait for segments to render in DOM
+        segments = await waitForTranscriptSegments(8000);
+      }
+
+      if (!segments || segments.length === 0) {
+        throw new Error('Nenhum segmento de transcrição foi encontrado para este vídeo.');
+      }
+
+      // 2. Extract transcript text
+      const fullText = extractTranscriptText(segments, includeTimestamps);
+
+      if (!fullText) {
+        throw new Error('O conteúdo da transcrição está vazio.');
+      }
+
+      // 3. Copy text to clipboard
+      const copied = await copyToClipboard(fullText);
+
+      if (!copied) {
+        throw new Error('Não foi possível copiar o texto para a Área de Transferência.');
+      }
+
+      showToast(`Transcrição Copiada! (${segments.length} linhas)`, 'success');
+
+      return {
+        success: true,
+        segmentCount: segments.length,
+        text: fullText
+      };
+
+    } catch (err) {
+      console.error('[YouTube Auto Commenter] Transcript error:', err);
+      showToast(err.message || 'Erro ao obter transcrição', 'error');
+      return {
+        success: false,
+        error: err.message
+      };
+    }
+  }
+
+  function findShowTranscriptButton() {
+    // 1. Check exact or partial aria-label (pt-BR / en-US)
+    let btn = document.querySelector('button[aria-label="Mostrar transcrição"]') ||
+              document.querySelector('button[aria-label*="Mostrar transcrição"]') ||
+              document.querySelector('button[aria-label*="transcrição"]') ||
+              document.querySelector('button[aria-label*="Show transcript"]') ||
+              document.querySelector('button[aria-label*="transcript"]');
+
+    if (btn) return btn;
+
+    // 2. Search button text content
+    const candidateButtons = document.querySelectorAll('button.ytSpecButtonShapeNextHost, button');
+    for (const b of candidateButtons) {
+      const textContent = b.textContent ? b.textContent.trim() : '';
+      if (textContent.includes('Mostrar transcrição') || textContent.includes('Show transcript')) {
+        return b;
+      }
+    }
+
+    // 3. Check video description section renderer
+    const descSectionBtn = document.querySelector('ytd-video-description-transcript-section-renderer button') ||
+                           document.querySelector('#primary-button ytd-button-renderer button');
+    if (descSectionBtn) return descSectionBtn;
+
+    return null;
+  }
+
+  async function openTranscriptFromMoreMenu() {
+    const moreMenuBtn = document.querySelector('ytd-watch-metadata #button-shape button[aria-label*="Mais ações"]') ||
+                         document.querySelector('ytd-watch-metadata #button-shape button[aria-label*="More actions"]') ||
+                         document.querySelector('#top-level-buttons-computed ytd-menu-renderer button');
+
+    if (moreMenuBtn) {
+      moreMenuBtn.click();
+      await sleep(300);
+
+      const menuItems = document.querySelectorAll('ytd-menu-service-item-renderer, ytd-menu-navigation-item-renderer, tp-yt-paper-item');
+      for (const item of menuItems) {
+        if (item.textContent.includes('Mostrar transcrição') || item.textContent.includes('Show transcript')) {
+          item.click();
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function waitForTranscriptSegments(timeoutMs = 7000) {
+    return new Promise((resolve, reject) => {
+      const startTime = Date.now();
+
+      const check = () => {
+        const segments = document.querySelectorAll('ytd-transcript-segment-renderer');
+
+        if (segments && segments.length > 0) {
+          resolve(segments);
+          return;
+        }
+
+        if (Date.now() - startTime > timeoutMs) {
+          reject(new Error('Tempo limite excedido ao aguardar segmentos da transcrição.'));
+          return;
+        }
+
+        setTimeout(check, 250);
+      };
+
+      check();
+    });
+  }
+
+  function extractTranscriptText(segments, includeTimestamps = true) {
+    const lines = [];
+
+    segments.forEach(segment => {
+      const timestampEl = segment.querySelector('.segment-timestamp') ||
+                          segment.querySelector('.segment-start-offset');
+      const timestampText = timestampEl ? timestampEl.textContent.trim() : '';
+
+      const textEl = segment.querySelector('.segment-text') ||
+                     segment.querySelector('yt-formatted-string.segment-text') ||
+                     segment.querySelector('yt-formatted-string');
+      const textContent = textEl ? textEl.textContent.trim() : '';
+
+      if (textContent) {
+        if (includeTimestamps && timestampText) {
+          lines.push(`[${timestampText}] ${textContent}`);
+        } else {
+          lines.push(textContent);
+        }
+      }
+    });
+
+    return includeTimestamps ? lines.join('\n') : lines.join(' ');
+  }
+
+  async function copyToClipboard(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (err) {
+      console.warn('Direct navigator.clipboard failed, using fallback:', err);
+    }
+
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '-9999px';
+      textarea.setAttribute('readonly', '');
+      document.body.appendChild(textarea);
+      textarea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return successful;
+    } catch (fallbackErr) {
+      console.error('Copy fallback failed:', fallbackErr);
+      return false;
+    }
   }
 })();

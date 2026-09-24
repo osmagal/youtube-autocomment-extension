@@ -428,6 +428,12 @@ input:checked + .slider:before {
   width: 100%;
 }
 
+.action-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .btn-primary {
   background-color: var(--yt-red);
   color: white;
@@ -436,6 +442,18 @@ input:checked + .slider:before {
 .btn-primary:hover {
   background-color: var(--yt-red-hover);
   box-shadow: 0 0 10px var(--yt-red-glow);
+}
+
+.btn-secondary {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background-color: var(--bg-card-hover);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
 }
 
 .btn-icon {

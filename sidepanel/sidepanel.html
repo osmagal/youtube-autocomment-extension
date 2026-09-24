@@ -75,6 +75,14 @@
             <span class="checkbox-label">Dar curtida (Like) no vídeo automaticamente</span>
           </label>
         </div>
+
+        <div class="checkbox-group" style="margin-top: 6px;">
+          <label class="custom-checkbox">
+            <input type="checkbox" id="toggleIncludeTimestamps" checked>
+            <span class="checkmark"></span>
+            <span class="checkbox-label">Incluir timestamps [0:00] na transcrição</span>
+          </label>
+        </div>
       </section>
 
       <!-- Section: Active Video Monitor -->
@@ -110,6 +118,12 @@
                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
               </svg>
               Comentar Neste Vídeo Agora
+            </button>
+            <button id="btnCopyTranscript" class="btn btn-secondary btn-full">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2zm0-4H7V7h10v2zm-4 8H7v-2h6v2z"/>
+              </svg>
+              Copiar Transcrição do Vídeo
             </button>
           </div>
         </div>

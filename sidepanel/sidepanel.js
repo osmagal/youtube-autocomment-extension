@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const commentTextArea = document.getElementById('commentTextArea');
   const toggleAutoSubmit = document.getElementById('toggleAutoSubmit');
   const toggleAutoLike = document.getElementById('toggleAutoLike');
+  const toggleIncludeTimestamps = document.getElementById('toggleIncludeTimestamps');
   const charCount = document.getElementById('charCount');
   const saveIndicator = document.getElementById('saveIndicator');
   
@@ -19,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRefreshTab = document.getElementById('btnRefreshTab');
   const actionRow = document.getElementById('actionRow');
   const btnForceComment = document.getElementById('btnForceComment');
+  const btnCopyTranscript = document.getElementById('btnCopyTranscript');
   
   const historyCountBadge = document.getElementById('historyCountBadge');
   const historyList = document.getElementById('historyList');
@@ -41,11 +43,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load configuration from chrome.storage.local
   function loadSettings() {
-    chrome.storage.local.get(['autoCommentEnabled', 'commentText', 'autoSubmit', 'autoLike', 'commentedVideos'], (data) => {
+    chrome.storage.local.get(['autoCommentEnabled', 'commentText', 'autoSubmit', 'autoLike', 'includeTimestamps', 'commentedVideos'], (data) => {
       toggleAutoComment.checked = data.autoCommentEnabled !== false;
       commentTextArea.value = data.commentText || "Ótimo vídeo! Obrigado por compartilhar.";
       toggleAutoSubmit.checked = data.autoSubmit !== false;
       toggleAutoLike.checked = data.autoLike !== false;
+      toggleIncludeTimestamps.checked = data.includeTimestamps !== false;
       
       updateCharCount();
       updateGlobalStatusBadge(toggleAutoComment.checked);
@@ -86,6 +89,12 @@ document.addEventListener('DOMContentLoaded', () => {
       showSaveIndicator();
     });
 
+    // Include Timestamps Checkbox
+    toggleIncludeTimestamps.addEventListener('change', () => {
+      chrome.storage.local.set({ includeTimestamps: toggleIncludeTimestamps.checked });
+      showSaveIndicator();
+    });
+
     // Refresh Active Tab Info
     btnRefreshTab.addEventListener('click', () => {
       updateActiveTabInfo();
@@ -119,6 +128,46 @@ document.addEventListener('DOMContentLoaded', () => {
           updateActiveTabInfo();
         }
       });
+    });
+
+    // Copy Transcript Button
+    btnCopyTranscript.addEventListener('click', () => {
+      if (!currentActiveTab || !currentActiveTab.id) return;
+
+      btnCopyTranscript.disabled = true;
+      const originalHtml = btnCopyTranscript.innerHTML;
+      btnCopyTranscript.innerHTML = `
+        <svg class="spin" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="10"></circle>
+        </svg>
+        Obtendo Transcrição...
+      `;
+
+      chrome.tabs.sendMessage(
+        currentActiveTab.id, 
+        { type: 'GET_TRANSCRIPT', includeTimestamps: toggleIncludeTimestamps.checked }, 
+        (response) => {
+          btnCopyTranscript.disabled = false;
+          btnCopyTranscript.innerHTML = originalHtml;
+
+          if (chrome.runtime.lastError) {
+            console.warn("Error getting transcript:", chrome.runtime.lastError);
+            alert("Erro ao se comunicar com a página do YouTube. Certifique-se de recarregar a página.");
+          } else if (response && response.success) {
+            btnCopyTranscript.innerHTML = `
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              Transcrição Copiada!
+            `;
+            setTimeout(() => {
+              btnCopyTranscript.innerHTML = originalHtml;
+            }, 3000);
+          } else if (response && response.error) {
+            alert(`Erro na transcrição: ${response.error}`);
+          }
+        }
+      );
     });
 
     // History Search
